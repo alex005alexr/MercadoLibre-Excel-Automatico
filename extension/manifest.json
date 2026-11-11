@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Preparar planilla de MercadoLibre",
+  "version": "0.1.0",
+  "description": "Prepara y comprueba los campos y filtros para la planilla de edición masiva de MercadoLibre.",
+  "permissions": [],
+  "host_permissions": [
+    "https://vendedores.mercadolibre.com.ve/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://vendedores.mercadolibre.com.ve/publicaciones/edicion-en-excel*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
