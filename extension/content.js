@@ -1,198 +1,164 @@
 (() => {
   "use strict";
-
   if (window.__mlExcelHelperLoaded) return;
   window.__mlExcelHelperLoaded = true;
 
-  const FIELD_NAMES = ["Precio", "Estado", "SKU", "Categoría", "En tu depósito"];
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const normalize = value => (value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ").trim().toLowerCase();
 
-  const normalize = (value) => (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+  const isVisible = el => {
+    if (!el || !el.isConnected) return false;
+    const s = getComputedStyle(el);
+    return s.display !== "none" && s.visibility !== "hidden" && el.getClientRects().length > 0;
+  };
+  const textOf = el => normalize(el?.innerText || el?.textContent || "");
 
-  function isVisible(element) {
-    if (!element || !element.isConnected) return false;
-    const style = window.getComputedStyle(element);
-    return style.display !== "none" &&
-      style.visibility !== "hidden" &&
-      element.getClientRects().length > 0;
-  }
-
-  function labelText(label) {
-    return normalize(label?.innerText || label?.textContent || "");
-  }
-
-  function getControlFromLabel(label) {
+  function controlFor(label) {
     if (!label) return null;
-    const direct = label.control || label.querySelector("input, select");
-    if (direct) return direct;
-
-    const forId = label.getAttribute("for");
-    if (forId) return document.getElementById(forId);
-
-    const parent = label.parentElement;
-    return parent?.querySelector("input[type='checkbox'], input[type='radio']") || null;
+    if (label.control) return label.control;
+    const nested = label.querySelector("input");
+    if (nested) return nested;
+    const id = label.getAttribute("for");
+    if (id) return document.getElementById(id);
+    return label.parentElement?.querySelector("input[type=checkbox],input[type=radio]") || null;
   }
 
-  function allLabels() {
-    return [...document.querySelectorAll("label")].filter(isVisible);
+  function labels(root = document) {
+    return [...root.querySelectorAll("label")].filter(isVisible);
   }
 
-  function findLabel(matcher, root = document) {
-    return [...root.querySelectorAll("label")].find((label) =>
-      isVisible(label) && matcher(labelText(label))
-    ) || null;
+  function exactLabel(name, root = document) {
+    const wanted = normalize(name);
+    return labels(root).find(label => textOf(label) === wanted) || null;
   }
 
-  function clickControl(control) {
-    if (!control || !isVisible(control)) return false;
-    if (control.type === "checkbox" || control.type === "radio") {
-      if (!control.checked) control.click();
-      return control.checked;
+  function setCheckbox(label, wantedState) {
+    const control = controlFor(label);
+    if (!control || control.type !== "checkbox") {
+      return { ok: false, reason: "No se encontró una casilla verificable" };
     }
-    control.click();
-    return true;
-  }
-
-  function findSectionHeading(phrases) {
-    const candidates = [...document.querySelectorAll(
-      "h1,h2,h3,h4,h5,button,[role='button'],summary,legend,div,span"
-    )].filter(isVisible);
-
-    return candidates
-      .filter((element) => {
-        const text = normalize(element.innerText || element.textContent);
-        return text && text.length < 180 &&
-          phrases.some((phrase) => text.includes(normalize(phrase)));
-      })
-      .sort((a, b) => {
-        const aLen = normalize(a.innerText || a.textContent).length;
-        const bLen = normalize(b.innerText || b.textContent).length;
-        return aLen - bLen;
-      })[0] || null;
-  }
-
-  function sectionForHeading(heading) {
-    if (!heading) return null;
-    let current = heading;
-    for (let depth = 0; current && depth < 6; depth++, current = current.parentElement) {
-      const controls = [...current.querySelectorAll("input,button,[role='checkbox']")];
-      if (controls.length) return current;
+    if (control.checked !== wantedState) {
+      // Click sobre la etiqueta para respetar los eventos de componentes controlados.
+      label.click();
     }
-    return heading.parentElement;
-  }
-
-  async function openSection(phrases) {
-    const heading = findSectionHeading(phrases);
-    if (!heading) return { found: false, opened: false, section: null };
-
-    let section = sectionForHeading(heading);
-    const hasVisibleControls = () =>
-      section && [...section.querySelectorAll("input,button,[role='checkbox']")].some(isVisible);
-
-    if (!hasVisibleControls()) {
-      const clickable = heading.closest("button,[role='button'],summary") || heading;
-      clickable.click();
-      await sleep(450);
-      section = sectionForHeading(heading);
-    }
-
-    return { found: true, opened: !!hasVisibleControls(), section };
-  }
-
-  function selectNamedField(name) {
-    const target = normalize(name);
-    const label = findLabel((text) => text === target || text.startsWith(target + " "));
-    if (!label) return { name, ok: false, reason: "No se encontró la etiqueta" };
-
-    const control = getControlFromLabel(label);
-    if (!control) return { name, ok: false, reason: "No se encontró su control" };
-
-    const ok = clickControl(control);
-    return { name, ok: ok && (control.type !== "checkbox" || control.checked),
-      reason: ok ? "" : "No se pudo marcar" };
-  }
-
-  function selectAllCategoryOptions(section) {
-    if (!section) return { ok: false, selected: 0, total: 0, reason: "Sección no localizada" };
-
-    // La selección se limita al bloque identificado por el encabezado de categorías.
-    const labels = [...section.querySelectorAll("label")].filter(isVisible);
-    const candidates = labels
-      .map((label) => ({ label, control: getControlFromLabel(label), text: labelText(label) }))
-      .filter(({ control, text }) =>
-        control?.type === "checkbox" &&
-        text &&
-        !/^(todas?|seleccionar todas?|ninguna|limpiar|buscar)$/.test(text)
-      );
-
-    if (!candidates.length) {
-      return { ok: false, selected: 0, total: 0, reason: "No se encontraron casillas de categorías" };
-    }
-
-    let selected = 0;
-    for (const item of candidates) {
-      if (!item.control.checked) item.control.click();
-      if (item.control.checked) selected++;
-    }
-
     return {
-      ok: selected === candidates.length,
-      selected,
-      total: candidates.length,
-      reason: selected === candidates.length ? "" : "Algunas categorías no pudieron marcarse"
+      ok: control.checked === wantedState,
+      reason: control.checked === wantedState ? "" : "El sitio no confirmó el cambio"
     };
   }
 
-  function selectActiveOnly() {
-    const label = findLabel((text) =>
-      text === "activas" || text === "publicaciones activas" ||
-      text === "solo activas" || text === "estado activas"
-    );
+  function findHeading(phrases) {
+    const selectors = "h1,h2,h3,h4,h5,button,[role=button],summary,legend,div,span";
+    return [...document.querySelectorAll(selectors)]
+      .filter(isVisible)
+      .filter(el => {
+        const t = textOf(el);
+        return t && t.length < 160 && phrases.some(p => t.includes(normalize(p)));
+      })
+      .sort((a,b) => textOf(a).length - textOf(b).length)[0] || null;
+  }
 
-    if (!label) return { ok: false, reason: "No se encontró el filtro exacto «Activas»" };
+  async function ensureSectionVisible(phrases) {
+    const heading = findHeading(phrases);
+    if (!heading) return { found: false, section: null };
 
-    const control = getControlFromLabel(label);
-    if (!control || control.type !== "checkbox") {
-      return { ok: false, reason: "El filtro «Activas» no parece ser una casilla" };
+    const clickable = heading.closest("button,[role=button],summary") || heading;
+    // Busca un contenedor cercano que contenga etiquetas de formulario visibles.
+    let section = heading;
+    for (let i = 0; i < 7 && section.parentElement; i++) {
+      section = section.parentElement;
+      if (labels(section).length) break;
     }
 
-    if (!control.checked) control.click();
-    if (!control.checked) return { ok: false, reason: "No se pudo activar el filtro" };
+    if (!labels(section).length) {
+      clickable.click();
+      await sleep(500);
+      section = heading.parentElement || heading;
+      for (let i = 0; i < 7 && section.parentElement && !labels(section).length; i++) {
+        section = section.parentElement;
+      }
+    }
+    return { found: true, section };
+  }
 
-    // Desmarca otros estados sólo si están claramente identificados como filtros de estado.
-    const otherStates = ["inactivas", "pausadas", "sin stock"];
-    for (const state of otherStates) {
-      const otherLabel = findLabel((text) => text === state || text === "publicaciones " + state);
-      const otherControl = getControlFromLabel(otherLabel);
-      if (otherControl?.type === "checkbox" && otherControl.checked) otherControl.click();
+  function applyFields() {
+    const desired = [
+      ["Precio", true],
+      ["Estado", true],
+      ["SKU", true],
+      ["Categoría", true],
+      ["En tu depósito", true],
+      ["Forma de entrega y costo de envío", false],
+      ["Tipo de publicación", false],
+      ["Condición", false]
+    ];
+
+    return desired.map(([name, state]) => {
+      const label = exactLabel(name);
+      if (!label) return { name, ok: false, reason: "No se encontró la opción exacta" };
+      const result = setCheckbox(label, state);
+      return { name, state, ...result };
+    });
+  }
+
+  async function applyAllCategories() {
+    const sectionInfo = await ensureSectionVisible([
+      "publicaciones que quieres incluir en la planilla",
+      "publicaciones que quieres incluir",
+      "categorías que quieres incluir",
+      "categorias que quieres incluir"
+    ]);
+    if (!sectionInfo.found) {
+      return { ok: false, message: "No se localizó el apartado de categorías." };
     }
 
-    return { ok: true, reason: "" };
+    // Busca la casilla «Todas» dentro del bloque de categorías, no marca categorías individuales.
+    let section = sectionInfo.section;
+    let allLabel = exactLabel("Todas", section);
+    for (let i = 0; !allLabel && i < 5 && section.parentElement; i++) {
+      section = section.parentElement;
+      allLabel = exactLabel("Todas", section);
+    }
+    if (!allLabel) {
+      return { ok: false, message: "No se encontró la casilla «Todas» en categorías." };
+    }
+    const result = setCheckbox(allLabel, true);
+    return {
+      ok: result.ok,
+      message: result.ok ? "Solo se marcó «Todas»; no se seleccionaron categorías individuales."
+        : "Se encontró «Todas», pero no se pudo confirmar su selección."
+    };
+  }
+
+  function applyActiveFilter() {
+    const label = labels().find(l => [
+      "activas", "publicaciones activas", "solo activas"
+    ].includes(textOf(l)));
+    if (!label) return { ok: false, message: "No se localizó el filtro exacto «Activas»." };
+    const result = setCheckbox(label, true);
+    return { ok: result.ok, message: result.ok
+      ? "Filtro «Activas» seleccionado."
+      : "No se pudo confirmar el filtro «Activas»." };
   }
 
   function createPanel() {
     const panel = document.createElement("section");
     panel.id = "ml-excel-helper-panel";
     panel.innerHTML = `
-      <div class="mlh-head">
-        <strong>Preparar planilla de MercadoLibre</strong>
-        <button type="button" class="mlh-min" aria-label="Contraer panel">−</button>
-      </div>
+      <div class="mlh-head"><strong>Preparar planilla de MercadoLibre</strong>
+        <button type="button" class="mlh-min" aria-label="Contraer panel">−</button></div>
       <div class="mlh-body">
-        <p>Marca los campos y filtros acordados. No descarga la planilla.</p>
-        <button type="button" class="mlh-run">Aplicar selección y comprobar</button>
-        <div class="mlh-status" role="status" aria-live="polite">Listo para comprobar.</div>
+        <p>La selección se aplica automáticamente al abrir esta página. Puedes repetir la comprobación.</p>
+        <button type="button" class="mlh-run">Aplicar selección nuevamente</button>
+        <div class="mlh-status" role="status" aria-live="polite">Esperando que MercadoLibre cargue los controles…</div>
         <ul class="mlh-report"></ul>
       </div>`;
 
     const style = document.createElement("style");
     style.textContent = `
-      #ml-excel-helper-panel{position:fixed;z-index:2147483647;right:18px;bottom:18px;width:330px;max-width:calc(100vw - 36px);background:#fff;color:#222;border:1px solid #bbb;border-radius:12px;box-shadow:0 4px 22px #0003;font:14px/1.4 Arial,sans-serif}
+      #ml-excel-helper-panel{position:fixed;z-index:2147483647;right:18px;bottom:18px;width:350px;max-width:calc(100vw - 36px);background:#fff;color:#222;border:1px solid #bbb;border-radius:12px;box-shadow:0 4px 22px #0003;font:14px/1.4 Arial,sans-serif}
       #ml-excel-helper-panel .mlh-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:#f3f5f7;border-radius:12px 12px 0 0}
       #ml-excel-helper-panel button{cursor:pointer;border:0;border-radius:7px;padding:9px 12px}
       #ml-excel-helper-panel .mlh-min{font-size:20px;padding:0 8px;background:transparent}
@@ -213,64 +179,68 @@
         panel.classList.contains("mlh-collapsed") ? "+" : "−";
     });
 
-    panel.querySelector(".mlh-run").addEventListener("click", async () => {
-      const button = panel.querySelector(".mlh-run");
-      const status = panel.querySelector(".mlh-status");
-      const report = panel.querySelector(".mlh-report");
-      button.disabled = true;
-      status.textContent = "Comprobando controles…";
-      report.replaceChildren();
-
-      const add = (text, ok) => {
-        const li = document.createElement("li");
-        li.textContent = (ok ? "✓ " : "⚠ ") + text;
-        li.style.color = ok ? "#18753c" : "#a15c00";
-        report.append(li);
-      };
-
-      try {
-        const fieldsSection = await openSection(["datos que vas a modificar", "datos a modificar"]);
-        if (!fieldsSection.found) add("No se localizó «Datos que vas a modificar».", false);
-        else if (!fieldsSection.opened) add("Se encontró «Datos que vas a modificar», pero no se pudieron mostrar sus controles.", false);
-
-        for (const name of FIELD_NAMES) {
-          const result = selectNamedField(name);
-          add(name + (result.ok ? " seleccionado" : ": " + result.reason), result.ok);
-        }
-
-        const categoriesSection = await openSection([
-          "publicaciones que quieres incluir en la planilla",
-          "categorías que quieres incluir",
-          "categorias que quieres incluir"
-        ]);
-        if (!categoriesSection.found) {
-          add("No se localizó la sección de categorías.", false);
-        } else {
-          const result = selectAllCategoryOptions(categoriesSection.section);
-          add(result.ok
-            ? "Categorías seleccionadas: " + result.selected + "/" + result.total
-            : "Categorías: " + result.reason + " (" + result.selected + "/" + result.total + ")", result.ok);
-        }
-
-        const active = selectActiveOnly();
-        add(active.ok ? "Filtro «Activas» seleccionado; otros estados reconocidos desmarcados."
-          : "Filtro de publicaciones activas: " + active.reason, active.ok);
-
-        add("No se descargó ningún archivo ni se modificaron precios o cantidades.", true);
-        status.textContent = "Comprobación terminada. Revisa los avisos.";
-      } catch (error) {
-        status.textContent = "La comprobación encontró un error.";
-        add("Error: " + (error?.message || String(error)), false);
-      } finally {
-        button.disabled = false;
-      }
-    });
-
+    panel.querySelector(".mlh-run").addEventListener("click", runSelection);
     return panel;
+  }
+
+  async function runSelection() {
+    const panel = document.getElementById("ml-excel-helper-panel");
+    if (!panel) return;
+    const button = panel.querySelector(".mlh-run");
+    const status = panel.querySelector(".mlh-status");
+    const report = panel.querySelector(".mlh-report");
+    button.disabled = true;
+    status.textContent = "Aplicando y verificando selección…";
+    report.replaceChildren();
+
+    const add = (message, ok) => {
+      const li = document.createElement("li");
+      li.textContent = (ok ? "✓ " : "⚠ ") + message;
+      li.style.color = ok ? "#18753c" : "#a15c00";
+      report.append(li);
+    };
+
+    try {
+      const section = await ensureSectionVisible(["datos que vas a modificar", "datos a modificar"]);
+      if (!section.found) add("No se localizó «Datos que vas a modificar».", false);
+
+      for (const result of applyFields()) {
+        const action = result.state ? "marcado" : "desmarcado";
+        add(result.name + (result.ok ? " " + action : ": " + result.reason), result.ok);
+      }
+
+      const categories = await applyAllCategories();
+      add(categories.message, categories.ok);
+
+      const active = applyActiveFilter();
+      add(active.message, active.ok);
+
+      add("No se descargó la planilla ni se modificaron precios, cantidades o filtros de envío.", true);
+      status.textContent = "Proceso terminado. Revisa los avisos.";
+    } catch (error) {
+      status.textContent = "No se pudo completar toda la selección.";
+      add("Error: " + (error?.message || String(error)), false);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function init() {
     if (!document.getElementById("ml-excel-helper-panel")) createPanel();
+    // Espera la carga de los controles dinámicos de MercadoLibre y aplica automáticamente.
+    let attempts = 0;
+    const autoApply = async () => {
+      if (attempts >= 8) return;
+      attempts++;
+      const hasLabels = labels().length > 0;
+      if (!hasLabels) {
+        await sleep(900);
+        return autoApply();
+      }
+      await sleep(500);
+      await runSelection();
+    };
+    autoApply();
   }
 
   init();
