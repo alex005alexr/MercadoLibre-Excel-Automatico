@@ -124,15 +124,56 @@
     });
   }
 
+  function findCheckboxOption(name, root = document) {
+    const wanted = norm(name);
+    // Primero buscar labels convencionales, aunque el texto tenga elementos internos.
+    const direct = [...root.querySelectorAll("label")].find(el => {
+      const t = txt(el);
+      return t === wanted || t.startsWith(wanted + " ") || t.startsWith(wanted + ":");
+    });
+    if (direct) return { target: direct, input: controlFor(direct) };
+
+    // MercadoLibre también puede representar las opciones como div/span
+    // con role=checkbox o con un input dentro de un contenedor.
+    const candidates = [...root.querySelectorAll("[role=checkbox],input[type=checkbox],span,div,p")]
+      .filter(visible)
+      .filter(el => {
+        const t = txt(el);
+        return t === wanted || t.startsWith(wanted + " ") || t.startsWith(wanted + ":");
+      })
+      .sort((a, b) => txt(a).length - txt(b).length);
+
+    for (const el of candidates) {
+      if (el.matches("input[type=checkbox]")) return { target: el, input: el };
+      const input = el.querySelector("input[type=checkbox]") ||
+        el.closest("label")?.querySelector("input[type=checkbox]");
+      if (input) return { target: el.closest("label") || el, input };
+      const roleControl = el.matches("[role=checkbox]") ? el : el.closest("[role=checkbox]");
+      if (roleControl) return { target: roleControl, input: null };
+      const parent = el.parentElement;
+      if (parent?.querySelector("input[type=checkbox]")) {
+        return { target: parent, input: parent.querySelector("input[type=checkbox]") };
+      }
+    }
+    return null;
+  }
+
   function applyCategoryAndActive() {
     const results = [];
-    const allLabel = findLabel("Todas");
-    if (!allLabel) results.push({ ok: false, message: "No se encontró la opción «Todas» en la segunda lista." });
+    const allOption = findCheckboxOption("Todas");
+    if (!allOption) results.push({ ok: false, message: "No se encontró la opción «Todas» en la segunda lista." });
     else {
-      const result = setCheck(allLabel, true);
-      results.push({ ok: result.ok, message: result.ok
-        ? "Categorías: únicamente «Todas» quedó seleccionada."
-        : "No se pudo confirmar la selección de «Todas»." });
+      const input = allOption.input;
+      if (input) {
+        if (!input.checked) allOption.target.click();
+        results.push({ ok: input.checked, message: input.checked
+          ? "Categorías: opción «Todas» seleccionada."
+          : "No se pudo confirmar la selección de «Todas»." });
+      } else {
+        const alreadyChecked = allOption.target.getAttribute("aria-checked") === "true";
+        if (!alreadyChecked) allOption.target.click();
+        results.push({ ok: true, message: "Se pulsó la opción «Todas»." });
+      }
     }
 
     const activeLabel = labels().find(label => ["activas", "publicaciones activas", "solo activas"].includes(txt(label)));
