@@ -158,11 +158,38 @@
     return null;
   }
 
+  function diagnoseTodas() {
+    const matches = [...document.querySelectorAll("body *")].filter(visible)
+      .filter(el => {
+        const t = txt(el);
+        return t === "todas" || t.startsWith("todas ") || t.includes(" todas ");
+      })
+      .sort((a, b) => txt(a).length - txt(b).length)
+      .slice(0, 5);
+    if (!matches.length) return "No hay texto visible que contenga «Todas».";
+    return matches.map((el, i) => {
+      const chain = [];
+      let node = el;
+      for (let depth = 0; depth < 4 && node; depth++, node = node.parentElement) {
+        const role = node.getAttribute("role") || "";
+        const aria = node.getAttribute("aria-checked") || "";
+        const inputs = [...node.querySelectorAll("input[type=checkbox]")];
+        chain.push(node.tagName.toLowerCase() +
+          (node.className && typeof node.className === "string" ? "." + node.className.trim().replace(/\\s+/g, ".").slice(0, 90) : "") +
+          (role ? "[role=" + role + "]" : "") +
+          (aria ? "[aria-checked=" + aria + "]" : "") +
+          (inputs.length ? "[checkboxes=" + inputs.length + ",checked=" + inputs.filter(x => x.checked).length + "]" : ""));
+      }
+      return "Coincidencia " + (i + 1) + ": " + chain.join(" ← ");
+    }).join(" | ");
+  }
+
   function applyCategoryAndActive() {
     const results = [];
     const allOption = findCheckboxOption("Todas");
-    if (!allOption) results.push({ ok: false, message: "No se encontró la opción «Todas» en la segunda lista." });
-    else {
+    if (!allOption) {
+      results.push({ ok: false, message: "No se encontró la casilla «Todas». Diagnóstico: " + diagnoseTodas() });
+    } else {
       const input = allOption.input;
       if (input) {
         if (!input.checked) allOption.target.click();
