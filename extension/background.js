@@ -45,6 +45,7 @@ async function registerAutoTab(tabId, url) {
   if (parsed.origin + parsed.pathname !== AUTO_URL || parsed.searchParams.get("mlh_auto") !== "1") return;
 
   const current = await getRun();
+  if (current && current.tabId === tabId) return;
   if (current && Date.now() - current.startedAt < MAX_RUN_AGE) {
     if (current.tabId !== tabId) {
       try { await chrome.tabs.remove(tabId); } catch (_) {}
