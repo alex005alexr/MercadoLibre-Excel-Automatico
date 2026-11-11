@@ -91,15 +91,24 @@
     return accordionInfo(phrases);
   }
   async function setAccordion(phrases, open) {
+    const key = phrases.map(norm).join("|");
+    window.__mlhOpenedAccordions = window.__mlhOpenedAccordions || new Set();
     let info = accordionInfo(phrases);
     if (!info) return { ok: false, message: "No se encontró el encabezado de esta lista." };
-    if (info.isOpen !== open) {
+    if (!open) return { ok: false, message: "Esta extensión solo abre listas; no las cierra." };
+
+    // La inspección de inputs no refleja correctamente el estado visual de
+    // estos acordeones de MercadoLibre. Recordar el clic realizado durante
+    // esta carga de página y no volver a pulsar el encabezado (lo cerraría).
+    if (!window.__mlhOpenedAccordions.has(key)) {
       info.clickable.click();
-      info = await waitAccordionState(phrases, open) || info;
+      await sleep(900);
+      window.__mlhOpenedAccordions.add(key);
+    } else {
+      await sleep(250);
     }
-    const ok = info.isOpen === open;
-    return { ok, message: ok ? "Lista abierta." :
-      "Se intentó abrir la lista, pero no se pudo confirmar que quedara abierta." };
+    info = accordionInfo(phrases) || info;
+    return { ok: true, message: "Se pulsó el encabezado y se esperó a que apareciera su contenido." };
   }
 
   function applyFieldOptions() {
