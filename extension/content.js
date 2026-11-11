@@ -184,11 +184,35 @@
     }).join(" | ");
   }
 
-  function applyCategoryAndActive() {
+  function diagnoseCategoryControls(root = document) {
+    const entries = [];
+    const seen = new Set();
+    const add = (kind, el) => {
+      if (!el || !visible(el) || seen.has(el)) return;
+      seen.add(el);
+      const label = el.closest("label");
+      const parent = label || el.parentElement;
+      const description = (el.getAttribute("aria-label") || el.getAttribute("title") ||
+        (label ? txt(label) : txt(parent)) || "").slice(0, 100);
+      entries.push(kind + (description ? ": " + description : ": (sin texto)") +
+        (el.checked === true ? " [marcada]" : el.checked === false ? " [sin marcar]" :
+          el.getAttribute("aria-checked") ? " [" + el.getAttribute("aria-checked") + "]" : ""));
+    };
+    root.querySelectorAll('input[type="checkbox"],[role="checkbox"]').forEach(el =>
+      add(el.matches("input") ? "casilla" : "control personalizado", el));
+    root.querySelectorAll("label").forEach(el => {
+      const control = controlFor(el);
+      if (control) add("etiqueta", control);
+      else if (txt(el)) entries.push("etiqueta sin input: " + txt(el).slice(0, 100));
+    });
+    return entries.length ? entries.slice(0, 24).join(" | ") : "No se detectaron casillas ni etiquetas visibles dentro del panel.";
+  }
+
+  function applyCategoryAndActive(root = document) {
     const results = [];
-    const allOption = findCheckboxOption("Todas");
+    const allOption = findCheckboxOption("Todas", root);
     if (!allOption) {
-      results.push({ ok: false, message: "No se encontró la casilla «Todas». Diagnóstico: " + diagnoseTodas() });
+      results.push({ ok: false, message: "No se encontró «Todas» dentro de la segunda lista. Controles detectados: " + diagnoseCategoryControls(root) });
     } else {
       const input = allOption.input;
       if (input) {
@@ -285,7 +309,12 @@
       ], true);
       add("Segunda lista: " + secondOpen.message, secondOpen.ok);
       if (secondOpen.ok) {
-        for (const result of applyCategoryAndActive()) add(result.message, result.ok);
+        const secondInfo = accordionInfo([
+          "publicaciones que quieres incluir en la planilla",
+          "publicaciones que quieres incluir",
+          "categorías y publicaciones", "categorias y publicaciones"
+        ]);
+        for (const result of applyCategoryAndActive(secondInfo?.wrapper || document)) add(result.message, result.ok);
       } else add("Se omitieron «Todas» y «Activas» porque no se pudo abrir la segunda lista.", false);
 
       // Comprobar que ambas listas continúen desplegadas.
