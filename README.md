@@ -1,37 +1,45 @@
 # MercadoLibre Excel Automático
 
-Extensión experimental de Chrome para preparar la selección de campos y publicaciones en la página de edición masiva de MercadoLibre Venezuela.
+Extensión experimental de Chrome para preparar automáticamente la selección de campos y publicaciones en la página de edición masiva de MercadoLibre Venezuela.
 
-## Primera versión: prueba sin descarga
+## Comportamiento de esta versión
 
-La extensión agrega un panel en la página de edición en Excel. Al pulsar **Aplicar selección y comprobar**, intenta seleccionar:
+Al abrir la página de edición en Excel, la extensión espera a que carguen los controles y aplica la selección automáticamente. También deja un botón para repetir el proceso.
 
+**Campos que deben quedar marcados:**
 - Precio
 - Estado
 - SKU
 - Categoría
 - En tu depósito
-- Todas las categorías disponibles
-- Publicaciones activas, dejando desmarcados otros estados reconocibles
 
-La extensión **no descarga la planilla**, no cambia precios ni cantidades y no modifica filtros de envío.
+**Campos que deben quedar desmarcados:**
+- Forma de entrega y costo de envío
+- Tipo de publicación
+- Condición
 
-## Instalar para probar
+**Categorías:** marca únicamente la opción «Todas»; no marca las categorías individuales.
 
-1. Descarga o clona este repositorio.
-2. En Chrome abre `chrome://extensions`.
+**Publicaciones:** intenta dejar seleccionado el filtro «Activas».
+
+La extensión no descarga la planilla ni modifica precios, cantidades o filtros de envío.
+
+## Instalar o actualizar en Chrome
+
+1. Descarga el ZIP del repositorio y descomprímelo.
+2. Abre `chrome://extensions`.
 3. Activa **Modo de desarrollador**.
-4. Pulsa **Cargar descomprimida**.
-5. Selecciona la carpeta `extension`.
-6. Abre la página de edición en Excel de MercadoLibre Venezuela y pulsa **Aplicar selección y comprobar**.
+4. Si ya instalaste una versión anterior, pulsa **Actualizar** en la página de extensiones o vuelve a cargar la extensión.
+5. Si es la primera instalación, pulsa **Cargar descomprimida** y selecciona la carpeta `extension`.
+6. Abre la página de edición en Excel de MercadoLibre Venezuela.
 
-## Limitaciones conocidas
+## Limitaciones
 
-MercadoLibre puede cambiar la estructura de su página. La extensión usa etiquetas y encabezados visibles para localizar controles; por eso el informe distingue lo que pudo confirmar de lo que no pudo localizar. No debe considerarse una selección confirmada hasta revisar el informe y la página.
+MercadoLibre puede cambiar la estructura de su página. La extensión localiza controles mediante sus etiquetas visibles y muestra un informe de lo que pudo confirmar. Revisa el resultado en la página antes de continuar; si una opción no se reconoce, aparecerá como aviso.
 
-La extensión no envía datos a servidores externos, no lee ni almacena contraseñas y no requiere permisos para acceder a otras páginas.
+No se envían datos a servidores externos, no se leen ni almacenan contraseñas y no se requieren permisos para otras páginas.
 
 ## Archivos
 
 - `extension/manifest.json`: configuración Manifest V3.
-- `extension/content.js`: panel y automatización local de la selección.
+- `extension/content.js`: automatización local, panel e informe.
