@@ -1,6 +1,6 @@
 "use strict";
 
-const AUTO_URL = "https://vendedores.mercadolibre.com.ve/publicaciones/edicion-en-excel";
+const AUTO_URL = "https://vendedores.mercadolibre.com.ve/publicaciones/edicion-en-excel/download";
 const TIMEOUT_ALARM = "mlh-auto-download-timeout";
 const MAX_RUN_AGE = 5 * 60 * 1000;
 
