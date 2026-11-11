@@ -48,18 +48,40 @@
   function accordionInfo(phrases) {
     const heading = findHeading(phrases);
     if (!heading) return null;
-    let wrapper = heading.parentElement;
-    for (let depth = 0; depth < 7 && wrapper; depth++, wrapper = wrapper.parentElement) {
-      const inputs = [...wrapper.querySelectorAll("input,select,[role=checkbox]")];
-      if (inputs.length) {
-        return {
-          heading, wrapper,
-          clickable: heading.closest("button,[role=button],summary") || heading,
-          isOpen: inputs.some(visible)
-        };
+
+    // Buscar la tarjeta de ESTA lista, no un contenedor superior que también
+    // incluya los controles de la primera lista.
+    let card = null;
+    let node = heading;
+    for (let depth = 0; depth < 9 && node; depth++, node = node.parentElement) {
+      const text = txt(node);
+      const hasChevron = !!node.querySelector("svg,[class*='chevron'],[class*='arrow']");
+      if (text.length < 500 && phrases.some(p => text.includes(norm(p))) && hasChevron) {
+        card = node;
+        break;
       }
     }
-    return { heading, wrapper: heading.parentElement, clickable: heading.closest("button,[role=button],summary") || heading, isOpen: false };
+
+    const semanticControl = heading.closest("button,[role=button],summary,[aria-expanded]");
+    let clickable = semanticControl;
+    if (!clickable && card) {
+      // En esta pantalla el encabezado se presenta como una tarjeta con una
+      // flecha azul; si no hay botón semántico, pulsar esa tarjeta/encabezado.
+      clickable = card;
+    }
+    if (!clickable) clickable = heading;
+
+    const scope = card || clickable.parentElement || heading.parentElement;
+    const expandedAttr = clickable.getAttribute?.("aria-expanded");
+    const stateAttr = clickable.getAttribute?.("data-state") || card?.getAttribute?.("data-state");
+    let isOpen;
+    if (expandedAttr === "true" || stateAttr === "open") isOpen = true;
+    else if (expandedAttr === "false" || stateAttr === "closed") isOpen = false;
+    else {
+      const ownInputs = [...scope.querySelectorAll("input,select,[role=checkbox]")];
+      isOpen = ownInputs.some(visible);
+    }
+    return { heading, wrapper: scope, clickable, isOpen };
   }
   async function waitAccordionState(phrases, open, timeout = 3500) {
     const started = Date.now();
