@@ -32,5 +32,8 @@
   "action": {
     "default_title": "Programación de descargas",
     "default_popup": "options.html"
+  },
+  "icons": {
+    "128": "icon.png"
   }
 }
