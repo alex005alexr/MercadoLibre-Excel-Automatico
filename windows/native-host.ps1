@@ -28,7 +28,7 @@ try {
   $base = Join-Path $env:LOCALAPPDATA "MLExcelAutomatico"
   $configPath = Join-Path $base "config.json"
   $runner = Join-Path $base "run-download.ps1"
-  $url = "https://vendedores.mercadolibre.com.ve/publicaciones/edicion-en-excel?mlh_auto=1"
+  $url = "https://vendedores.mercadolibre.com.ve/publicaciones/edicion-en-excel/download?mlh_auto=1"
   if (-not (Test-Path $base)) { New-Item -ItemType Directory -Path $base -Force | Out-Null }
 
   if ($request.action -eq "getConfig") {
