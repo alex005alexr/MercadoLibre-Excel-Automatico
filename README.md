@@ -49,3 +49,8 @@ La estructura de MercadoLibre puede cambiar. Comprueba el informe y el estado vi
 
 - `extension/manifest.json`: configuración Manifest V3.
 - `extension/content.js`: automatización secuencial, panel e informe.
+
+
+### Apertura de las listas
+
+La extensión abre la primera lista, espera a que termine de desplegarse y aplica los campos acordados. **No la cierra**: la deja abierta y, tras una breve pausa, despliega la segunda lista. Después selecciona «Todas» y «Activas» y comprueba que ambas listas permanezcan abiertas.
