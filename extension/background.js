@@ -57,6 +57,8 @@ async function registerAutoTab(tabId, url) {
   await chrome.alarms.create(TIMEOUT_ALARM, { delayInMinutes: 10 });
   await chrome.action.setBadgeText({ text: "..." });
   await chrome.action.setBadgeBackgroundColor({ color: "#b7791f" });
+  // Si Chrome ya tenía otras pestañas, devolver el foco a la que estaba activa.
+  try { await chrome.tabs.update(tabId, { active: false }); } catch (_) {}
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
