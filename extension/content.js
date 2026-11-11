@@ -3,17 +3,16 @@
   if (window.__mlExcelHelperLoaded) return;
   window.__mlExcelHelperLoaded = true;
 
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  const normalize = value => (value || "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ").trim().toLowerCase();
-
-  const isVisible = el => {
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const norm = value => (value || "").normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const visible = el => {
     if (!el || !el.isConnected) return false;
     const s = getComputedStyle(el);
     return s.display !== "none" && s.visibility !== "hidden" && el.getClientRects().length > 0;
   };
-  const textOf = el => normalize(el?.innerText || el?.textContent || "");
+  const txt = el => norm(el?.innerText || el?.textContent || "");
+  const labels = (root = document) => [...root.querySelectorAll("label")].filter(visible);
 
   function controlFor(label) {
     if (!label) return null;
@@ -24,123 +23,90 @@
     if (id) return document.getElementById(id);
     return label.parentElement?.querySelector("input[type=checkbox],input[type=radio]") || null;
   }
-
-  function labels(root = document) {
-    return [...root.querySelectorAll("label")].filter(isVisible);
+  function findLabel(name, root = document) {
+    const wanted = norm(name);
+    return labels(root).find(label => {
+      const t = txt(label);
+      return t === wanted || t.startsWith(wanted + " ") || t.startsWith(wanted + ":");
+    }) || null;
   }
-
-  function exactLabel(name, root = document) {
-    const wanted = normalize(name);
-    return labels(root).find(label => textOf(label) === wanted) || null;
+  function setCheck(label, wanted) {
+    const input = controlFor(label);
+    if (!input || input.type !== "checkbox") return { ok: false, reason: "No se encontró una casilla verificable" };
+    if (input.checked !== wanted) label.click();
+    return { ok: input.checked === wanted, reason: input.checked === wanted ? "" : "MercadoLibre no confirmó el cambio" };
   }
-
-  function setCheckbox(label, wantedState) {
-    const control = controlFor(label);
-    if (!control || control.type !== "checkbox") {
-      return { ok: false, reason: "No se encontró una casilla verificable" };
-    }
-    if (control.checked !== wantedState) {
-      // Click sobre la etiqueta para respetar los eventos de componentes controlados.
-      label.click();
-    }
-    return {
-      ok: control.checked === wantedState,
-      reason: control.checked === wantedState ? "" : "El sitio no confirmó el cambio"
-    };
-  }
-
   function findHeading(phrases) {
-    const selectors = "h1,h2,h3,h4,h5,button,[role=button],summary,legend,div,span";
-    return [...document.querySelectorAll(selectors)]
-      .filter(isVisible)
+    const selector = "h1,h2,h3,h4,h5,button,[role=button],summary,legend,div,span";
+    return [...document.querySelectorAll(selector)].filter(visible)
       .filter(el => {
-        const t = textOf(el);
-        return t && t.length < 160 && phrases.some(p => t.includes(normalize(p)));
+        const t = txt(el);
+        return t && t.length < 180 && phrases.some(p => t.includes(norm(p)));
       })
-      .sort((a,b) => textOf(a).length - textOf(b).length)[0] || null;
+      .sort((a, b) => txt(a).length - txt(b).length)[0] || null;
   }
-
-  async function ensureSectionVisible(phrases) {
+  function accordionInfo(phrases) {
     const heading = findHeading(phrases);
-    if (!heading) return { found: false, section: null };
-
-    const clickable = heading.closest("button,[role=button],summary") || heading;
-    // Busca un contenedor cercano que contenga etiquetas de formulario visibles.
-    let section = heading;
-    for (let i = 0; i < 7 && section.parentElement; i++) {
-      section = section.parentElement;
-      if (labels(section).length) break;
-    }
-
-    if (!labels(section).length) {
-      clickable.click();
-      await sleep(500);
-      section = heading.parentElement || heading;
-      for (let i = 0; i < 7 && section.parentElement && !labels(section).length; i++) {
-        section = section.parentElement;
+    if (!heading) return null;
+    let wrapper = heading.parentElement;
+    for (let depth = 0; depth < 7 && wrapper; depth++, wrapper = wrapper.parentElement) {
+      const inputs = [...wrapper.querySelectorAll("input,select,[role=checkbox]")];
+      if (inputs.length) {
+        return {
+          heading, wrapper,
+          clickable: heading.closest("button,[role=button],summary") || heading,
+          isOpen: inputs.some(visible)
+        };
       }
     }
-    return { found: true, section };
+    return { heading, wrapper: heading.parentElement, clickable: heading.closest("button,[role=button],summary") || heading, isOpen: false };
+  }
+  async function setAccordion(phrases, open) {
+    let info = accordionInfo(phrases);
+    if (!info) return { ok: false, message: "No se encontró el encabezado de esta lista." };
+    if (info.isOpen !== open) {
+      info.clickable.click();
+      await sleep(550);
+      info = accordionInfo(phrases) || info;
+    }
+    const ok = info.isOpen === open;
+    return { ok, message: ok ? (open ? "Lista abierta." : "Lista cerrada.") :
+      "Se intentó cambiar la lista, pero no se pudo confirmar si quedó " + (open ? "abierta." : "cerrada.") };
   }
 
-  function applyFields() {
-    const desired = [
-      ["Precio", true],
-      ["Estado", true],
-      ["SKU", true],
-      ["Categoría", true],
-      ["En tu depósito", true],
-      ["Forma de entrega y costo de envío", false],
-      ["Tipo de publicación", false],
-      ["Condición", false]
+  function applyFieldOptions() {
+    const options = [
+      ["Precio", true], ["Estado", true], ["SKU", true], ["Categoría", true],
+      ["En tu depósito", true], ["Forma de entrega y costo de envío", false],
+      ["Tipo de publicación", false], ["Condición", false]
     ];
-
-    return desired.map(([name, state]) => {
-      const label = exactLabel(name);
-      if (!label) return { name, ok: false, reason: "No se encontró la opción exacta" };
-      const result = setCheckbox(label, state);
-      return { name, state, ...result };
+    return options.map(([name, wanted]) => {
+      const label = findLabel(name);
+      if (!label) return { name, wanted, ok: false, reason: "No se encontró en la primera lista" };
+      return { name, wanted, ...setCheck(label, wanted) };
     });
   }
 
-  async function applyAllCategories() {
-    const sectionInfo = await ensureSectionVisible([
-      "publicaciones que quieres incluir en la planilla",
-      "publicaciones que quieres incluir",
-      "categorías que quieres incluir",
-      "categorias que quieres incluir"
-    ]);
-    if (!sectionInfo.found) {
-      return { ok: false, message: "No se localizó el apartado de categorías." };
+  function applyCategoryAndActive() {
+    const results = [];
+    const allLabel = findLabel("Todas");
+    if (!allLabel) results.push({ ok: false, message: "No se encontró la opción «Todas» en la segunda lista." });
+    else {
+      const result = setCheck(allLabel, true);
+      results.push({ ok: result.ok, message: result.ok
+        ? "Categorías: únicamente «Todas» quedó seleccionada."
+        : "No se pudo confirmar la selección de «Todas»." });
     }
 
-    // Busca la casilla «Todas» dentro del bloque de categorías, no marca categorías individuales.
-    let section = sectionInfo.section;
-    let allLabel = exactLabel("Todas", section);
-    for (let i = 0; !allLabel && i < 5 && section.parentElement; i++) {
-      section = section.parentElement;
-      allLabel = exactLabel("Todas", section);
+    const activeLabel = labels().find(label => ["activas", "publicaciones activas", "solo activas"].includes(txt(label)));
+    if (!activeLabel) results.push({ ok: false, message: "No se encontró el filtro «Activas» en la segunda lista." });
+    else {
+      const result = setCheck(activeLabel, true);
+      results.push({ ok: result.ok, message: result.ok
+        ? "Publicaciones: filtro «Activas» seleccionado."
+        : "No se pudo confirmar el filtro «Activas»." });
     }
-    if (!allLabel) {
-      return { ok: false, message: "No se encontró la casilla «Todas» en categorías." };
-    }
-    const result = setCheckbox(allLabel, true);
-    return {
-      ok: result.ok,
-      message: result.ok ? "Solo se marcó «Todas»; no se seleccionaron categorías individuales."
-        : "Se encontró «Todas», pero no se pudo confirmar su selección."
-    };
-  }
-
-  function applyActiveFilter() {
-    const label = labels().find(l => [
-      "activas", "publicaciones activas", "solo activas"
-    ].includes(textOf(l)));
-    if (!label) return { ok: false, message: "No se localizó el filtro exacto «Activas»." };
-    const result = setCheckbox(label, true);
-    return { ok: result.ok, message: result.ok
-      ? "Filtro «Activas» seleccionado."
-      : "No se pudo confirmar el filtro «Activas»." };
+    return results;
   }
 
   function createPanel() {
@@ -150,12 +116,11 @@
       <div class="mlh-head"><strong>Preparar planilla de MercadoLibre</strong>
         <button type="button" class="mlh-min" aria-label="Contraer panel">−</button></div>
       <div class="mlh-body">
-        <p>La selección se aplica automáticamente al abrir esta página. Puedes repetir la comprobación.</p>
-        <button type="button" class="mlh-run">Aplicar selección nuevamente</button>
-        <div class="mlh-status" role="status" aria-live="polite">Esperando que MercadoLibre cargue los controles…</div>
+        <p>La extensión procesa las dos listas una después de la otra.</p>
+        <button type="button" class="mlh-run">Repetir selección</button>
+        <div class="mlh-status" role="status" aria-live="polite">Esperando la página…</div>
         <ul class="mlh-report"></ul>
       </div>`;
-
     const style = document.createElement("style");
     style.textContent = `
       #ml-excel-helper-panel{position:fixed;z-index:2147483647;right:18px;bottom:18px;width:350px;max-width:calc(100vw - 36px);background:#fff;color:#222;border:1px solid #bbb;border-radius:12px;box-shadow:0 4px 22px #0003;font:14px/1.4 Arial,sans-serif}
@@ -169,18 +134,13 @@
       #ml-excel-helper-panel .mlh-status{margin-top:10px;font-weight:600}
       #ml-excel-helper-panel .mlh-report{margin:7px 0 0;padding-left:20px;max-height:220px;overflow:auto}
       #ml-excel-helper-panel .mlh-report li{margin:4px 0}
-      #ml-excel-helper-panel.mlh-collapsed .mlh-body{display:none}
-    `;
+      #ml-excel-helper-panel.mlh-collapsed .mlh-body{display:none}`;
     document.documentElement.append(style, panel);
-
     panel.querySelector(".mlh-min").addEventListener("click", () => {
       panel.classList.toggle("mlh-collapsed");
-      panel.querySelector(".mlh-min").textContent =
-        panel.classList.contains("mlh-collapsed") ? "+" : "−";
+      panel.querySelector(".mlh-min").textContent = panel.classList.contains("mlh-collapsed") ? "+" : "−";
     });
-
     panel.querySelector(".mlh-run").addEventListener("click", runSelection);
-    return panel;
   }
 
   async function runSelection() {
@@ -190,35 +150,43 @@
     const status = panel.querySelector(".mlh-status");
     const report = panel.querySelector(".mlh-report");
     button.disabled = true;
-    status.textContent = "Aplicando y verificando selección…";
+    status.textContent = "Procesando primera lista…";
     report.replaceChildren();
-
     const add = (message, ok) => {
       const li = document.createElement("li");
       li.textContent = (ok ? "✓ " : "⚠ ") + message;
       li.style.color = ok ? "#18753c" : "#a15c00";
       report.append(li);
     };
-
     try {
-      const section = await ensureSectionVisible(["datos que vas a modificar", "datos a modificar"]);
-      if (!section.found) add("No se localizó «Datos que vas a modificar».", false);
+      // Primera lista: abrir, aplicar los campos y cerrar.
+      const firstOpen = await setAccordion(["datos que vas a modificar", "datos a modificar"], true);
+      add("Primera lista: " + firstOpen.message, firstOpen.ok);
+      if (firstOpen.ok) {
+        for (const result of applyFieldOptions()) {
+          add(result.name + (result.ok ? (result.wanted ? " marcado" : " desmarcado") : ": " + result.reason), result.ok);
+        }
+      } else add("Se omitieron los campos de la primera lista porque no se pudo abrir.", false);
 
-      for (const result of applyFields()) {
-        const action = result.state ? "marcado" : "desmarcado";
-        add(result.name + (result.ok ? " " + action : ": " + result.reason), result.ok);
-      }
+      const firstClose = await setAccordion(["datos que vas a modificar", "datos a modificar"], false);
+      add("Primera lista: " + firstClose.message, firstClose.ok);
 
-      const categories = await applyAllCategories();
-      add(categories.message, categories.ok);
+      // Segunda lista: se procesa únicamente después de cerrar la primera.
+      status.textContent = "Procesando segunda lista…";
+      const secondOpen = await setAccordion([
+        "publicaciones que quieres incluir en la planilla",
+        "publicaciones que quieres incluir",
+        "categorías y publicaciones", "categorias y publicaciones"
+      ], true);
+      add("Segunda lista: " + secondOpen.message, secondOpen.ok);
+      if (secondOpen.ok) {
+        for (const result of applyCategoryAndActive()) add(result.message, result.ok);
+      } else add("Se omitieron «Todas» y «Activas» porque no se pudo abrir la segunda lista.", false);
 
-      const active = applyActiveFilter();
-      add(active.message, active.ok);
-
-      add("No se descargó la planilla ni se modificaron precios, cantidades o filtros de envío.", true);
+      add("No se descargó ningún archivo ni se modificaron precios o cantidades.", true);
       status.textContent = "Proceso terminado. Revisa los avisos.";
     } catch (error) {
-      status.textContent = "No se pudo completar toda la selección.";
+      status.textContent = "No se pudo completar la selección.";
       add("Error: " + (error?.message || String(error)), false);
     } finally {
       button.disabled = false;
@@ -227,22 +195,15 @@
 
   function init() {
     if (!document.getElementById("ml-excel-helper-panel")) createPanel();
-    // Espera la carga de los controles dinámicos de MercadoLibre y aplica automáticamente.
-    let attempts = 0;
-    const autoApply = async () => {
-      if (attempts >= 8) return;
-      attempts++;
-      const hasLabels = labels().length > 0;
-      if (!hasLabels) {
-        await sleep(900);
-        return autoApply();
-      }
-      await sleep(500);
+    let tries = 0;
+    const attempt = async () => {
+      if (tries++ >= 12) return;
+      await sleep(700);
+      if (!findHeading(["datos que vas a modificar", "datos a modificar"])) return attempt();
       await runSelection();
     };
-    autoApply();
+    attempt();
   }
-
   init();
   const observer = new MutationObserver(() => {
     if (!document.getElementById("ml-excel-helper-panel")) init();
