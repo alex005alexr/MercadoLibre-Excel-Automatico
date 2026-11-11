@@ -22,7 +22,7 @@ La extensión también puede programar descargas aunque Chrome esté cerrado:
 - La extensión espera la descarga real del archivo. Si Chrome confirma que terminó, cierra solo la pestaña automática y muestra una notificación.
 - Si la sesión expiró, aparece un CAPTCHA, falla la selección o no se confirma la descarga en tres minutos, deja la pestaña abierta y muestra un aviso.
 
-La programación requiere Windows, Google Chrome instalado y la extensión cargada. El equipo debe estar encendido y el usuario debe haber iniciado sesión; no se ejecuta mientras Windows está apagado ni antes de iniciar sesión.
+La programación requiere Windows, Google Chrome instalado y la extensión cargada. El equipo debe estar encendido y el usuario debe haber iniciado sesión; no se ejecuta mientras Windows está apagado ni antes de iniciar sesión. Por ahora el Excel se guarda en la carpeta de descargas configurada en Chrome. La siguiente etapa será conectar esa ubicación con RepuestosInteligente y automatizar la importación.
 
 ### Instalación inicial
 
