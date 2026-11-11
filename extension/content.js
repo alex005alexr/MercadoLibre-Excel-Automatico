@@ -398,7 +398,10 @@
     if (!document.getElementById("ml-excel-helper-panel")) createPanel();
     let tries = 0;
     const attempt = async () => {
-      if (tries++ >= 12) return;
+      if (tries++ >= 12) {
+        reportAuto("mlh-auto-failed", "No apareció la pantalla de edición en Excel. Revisa si MercadoLibre cerró la sesión o mostró un CAPTCHA.");
+        return;
+      }
       await sleep(700);
       if (!findHeading(["datos que vas a modificar", "datos a modificar"])) return attempt();
       await runSelection();
