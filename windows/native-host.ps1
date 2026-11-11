@@ -57,10 +57,11 @@ try {
   $powershell = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
   $arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $runner + '" -Url "' + $url + '"'
   $action = New-ScheduledTaskAction -Execute $powershell -Argument $arguments
-  $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+  $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+  $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Limited
 
   if ($startup) {
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
     Register-ScheduledTask -TaskName ($taskPrefix + "InicioSesion") -Action $action -Trigger $trigger -Principal $principal -Description "Descarga automática de planilla de MercadoLibre al iniciar sesión." -Force | Out-Null
   }
   foreach ($time in $times) {
