@@ -208,6 +208,42 @@
     return entries.length ? entries.slice(0, 24).join(" | ") : "No se detectaron casillas ni etiquetas visibles dentro del panel.";
   }
 
+  function findDownloadButton() {
+    const candidates = [...document.querySelectorAll("button,[role=button],a")]
+      .filter(el => visible(el) && !el.closest("#ml-excel-helper-panel"));
+    return candidates.find(el => {
+      const name = norm([
+        el.innerText,
+        el.getAttribute("aria-label"),
+        el.getAttribute("title")
+      ].filter(Boolean).join(" "));
+      return name.includes("descargar") &&
+        (name.includes("excel") || name.includes("planilla") ||
+         name.includes("archivo") || name === "descargar");
+    }) || null;
+  }
+
+  async function clickDownloadButton() {
+    if (window.__mlhDownloadClicked) {
+      return { ok: false, message: "La descarga ya se inició en esta carga de página; no se volvió a pulsar para evitar duplicados." };
+    }
+    const started = Date.now();
+    let button = null;
+    while (Date.now() - started < 10000) {
+      button = findDownloadButton();
+      if (button && !button.disabled && button.getAttribute("aria-disabled") !== "true") break;
+      button = null;
+      await sleep(300);
+    }
+    if (!button) {
+      return { ok: false, message: "Las selecciones están listas, pero no se encontró un botón habilitado «Descargar Excel/planilla». No se pulsó ningún otro botón." };
+    }
+    button.click();
+    window.__mlhDownloadClicked = true;
+    await sleep(500);
+    return { ok: true, message: "Se pulsó «" + (txt(button) || button.getAttribute("aria-label") || "Descargar") + "»." };
+  }
+
   async function applyCategoryAndActive(root = document) {
     const results = [];
 
@@ -290,6 +326,7 @@
       report.append(li);
     };
     try {
+      let allSelectionsOk = true;
       // Primera lista: abrir, esperar a que termine de desplegarse y aplicar los campos.
       // Se deja abierta mientras se despliega la segunda lista.
       const firstPhrases = ["datos que vas a modificar", "datos a modificar"];
@@ -298,8 +335,12 @@
       if (firstOpen.ok) {
         for (const result of applyFieldOptions()) {
           add(result.name + (result.ok ? (result.wanted ? " marcado" : " desmarcado") : ": " + result.reason), result.ok);
+          if (!result.ok) allSelectionsOk = false;
         }
-      } else add("Se omitieron los campos de la primera lista porque no se pudo abrir.", false);
+      } else {
+        add("Se omitieron los campos de la primera lista porque no se pudo abrir.", false);
+        allSelectionsOk = false;
+      }
 
       // Pausa entre aperturas: MercadoLibre no permite desplegarlas en el mismo instante.
       status.textContent = "Esperando para abrir la segunda lista…";
@@ -316,12 +357,24 @@
           "publicaciones que quieres incluir",
           "categorías y publicaciones", "categorias y publicaciones"
         ]);
-        for (const result of await applyCategoryAndActive(secondInfo?.wrapper || document)) add(result.message, result.ok);
-      } else add("Se omitieron «Todas» y «Activas» porque no se pudo abrir la segunda lista.", false);
+        for (const result of await applyCategoryAndActive(secondInfo?.wrapper || document)) {
+          add(result.message, result.ok);
+          if (!result.ok) allSelectionsOk = false;
+        }
+      } else {
+        add("Se omitieron «Todas» y «Activas» porque no se pudo abrir la segunda lista.", false);
+        allSelectionsOk = false;
+      }
 
-      // No se informa el estado final de los acordeones: el DOM de MercadoLibre
-      // no expone un indicador fiable y esa comprobación generaba falsos avisos.
-      add("No se descargó ningún archivo ni se modificaron precios o cantidades.", true);
+      // Descargar únicamente si cada selección quedó confirmada.
+      if (allSelectionsOk) {
+        status.textContent = "Selecciones verificadas. Buscando el botón de descarga…";
+        const download = await clickDownloadButton();
+        add(download.message, download.ok);
+      } else {
+        add("No se descargó el Excel porque alguna selección no pudo verificarse.", false);
+      }
+      add("La extensión no modifica precios ni cantidades; solo prepara y descarga la planilla.", true);
       status.textContent = "Proceso terminado. Revisa los avisos.";
     } catch (error) {
       status.textContent = "No se pudo completar la selección.";
