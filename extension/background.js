@@ -102,7 +102,7 @@ chrome.downloads.onCreated.addListener(async item => {
   // y no depende de que referrer venga informado (puede variar si MercadoLibre
   // genera el archivo mediante una URL blob).
   const initiatedByAutoTab = Number.isInteger(item.tabId) && item.tabId === run.tabId;
-  const excelFile = /\\.(xlsx?|csv)(?:$|[?#])/i.test(item.filename || "");
+  const excelFile = /\.(xlsx?|csv)(?:$|[?#])/i.test(item.filename || "");
   if (!initiatedByAutoTab || !excelFile) return;
 
   await saveRun({ ...run, downloadId: item.id, state: "downloading" });
