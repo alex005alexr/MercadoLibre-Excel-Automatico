@@ -74,6 +74,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (!message || !sender.tab || !sender.tab.id) return;
   (async () => {
+    // Registrar también desde el primer mensaje del content script. Así evitamos
+    // una carrera si la página empieza a descargar antes de que tabs.onUpdated
+    // haya terminado de guardar la pestaña automática.
+    if (message.type === "mlh-auto-started" && sender.tab.url) {
+      await registerAutoTab(sender.tab.id, sender.tab.url);
+    }
     const run = await getRun();
     if (!run || run.tabId !== sender.tab.id) return;
     if (message.type === "mlh-auto-started") {
@@ -91,9 +97,14 @@ chrome.downloads.onCreated.addListener(async item => {
   if (!run || run.downloadId) return;
   const created = Date.parse(item.startTime || "") || Date.now();
   if (created < run.startedAt - 5000) return;
-  const referrer = item.referrer || "";
-  const excelFile = /\.(xlsx?|csv)(?:$|[?#])/i.test(item.filename || "");
-  if (!referrer.includes("vendedores.mercadolibre.com.ve") || !excelFile) return;
+
+  // Chrome informa tabId en el DownloadItem: es la correlación más segura
+  // y no depende de que referrer venga informado (puede variar si MercadoLibre
+  // genera el archivo mediante una URL blob).
+  const initiatedByAutoTab = Number.isInteger(item.tabId) && item.tabId === run.tabId;
+  const excelFile = /\\.(xlsx?|csv)(?:$|[?#])/i.test(item.filename || "");
+  if (!initiatedByAutoTab || !excelFile) return;
+
   await saveRun({ ...run, downloadId: item.id, state: "downloading" });
 });
 
