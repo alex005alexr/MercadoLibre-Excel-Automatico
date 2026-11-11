@@ -2,7 +2,7 @@
 
 const AUTO_URL = "https://vendedores.mercadolibre.com.ve/publicaciones/edicion-en-excel";
 const TIMEOUT_ALARM = "mlh-auto-download-timeout";
-const MAX_RUN_AGE = 15 * 60 * 1000;
+const MAX_RUN_AGE = 5 * 60 * 1000;
 
 async function getRun() {
   const data = await chrome.storage.local.get("mlhAutoRun");
@@ -54,11 +54,15 @@ async function registerAutoTab(tabId, url) {
   }
   const run = { tabId, startedAt: Date.now(), downloadId: null, state: "preparing" };
   await saveRun(run);
-  await chrome.alarms.create(TIMEOUT_ALARM, { delayInMinutes: 10 });
+  await chrome.alarms.create(TIMEOUT_ALARM, { delayInMinutes: 3 });
   await chrome.action.setBadgeText({ text: "..." });
   await chrome.action.setBadgeBackgroundColor({ color: "#b7791f" });
   // Si Chrome ya tenía otras pestañas, devolver el foco a la que estaba activa.
-  try { await chrome.tabs.update(tabId, { active: false }); } catch (_) {}
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const peers = await chrome.tabs.query({ windowId: tab.windowId });
+    if (peers.some(peer => peer.id !== tabId && peer.active)) await chrome.tabs.update(tabId, { active: false });
+  } catch (_) {}
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
