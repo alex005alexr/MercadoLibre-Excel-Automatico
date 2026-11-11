@@ -61,17 +61,25 @@
     }
     return { heading, wrapper: heading.parentElement, clickable: heading.closest("button,[role=button],summary") || heading, isOpen: false };
   }
+  async function waitAccordionState(phrases, open, timeout = 3500) {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const info = accordionInfo(phrases);
+      if (info && info.isOpen === open) return info;
+      await sleep(150);
+    }
+    return accordionInfo(phrases);
+  }
   async function setAccordion(phrases, open) {
     let info = accordionInfo(phrases);
     if (!info) return { ok: false, message: "No se encontró el encabezado de esta lista." };
     if (info.isOpen !== open) {
       info.clickable.click();
-      await sleep(550);
-      info = accordionInfo(phrases) || info;
+      info = await waitAccordionState(phrases, open) || info;
     }
     const ok = info.isOpen === open;
-    return { ok, message: ok ? (open ? "Lista abierta." : "Lista cerrada.") :
-      "Se intentó cambiar la lista, pero no se pudo confirmar si quedó " + (open ? "abierta." : "cerrada.") };
+    return { ok, message: ok ? "Lista abierta." :
+      "Se intentó abrir la lista, pero no se pudo confirmar que quedara abierta." };
   }
 
   function applyFieldOptions() {
@@ -159,8 +167,10 @@
       report.append(li);
     };
     try {
-      // Primera lista: abrir, aplicar los campos y cerrar.
-      const firstOpen = await setAccordion(["datos que vas a modificar", "datos a modificar"], true);
+      // Primera lista: abrir, esperar a que termine de desplegarse y aplicar los campos.
+      // Se deja abierta mientras se despliega la segunda lista.
+      const firstPhrases = ["datos que vas a modificar", "datos a modificar"];
+      const firstOpen = await setAccordion(firstPhrases, true);
       add("Primera lista: " + firstOpen.message, firstOpen.ok);
       if (firstOpen.ok) {
         for (const result of applyFieldOptions()) {
@@ -168,11 +178,9 @@
         }
       } else add("Se omitieron los campos de la primera lista porque no se pudo abrir.", false);
 
-      const firstClose = await setAccordion(["datos que vas a modificar", "datos a modificar"], false);
-      add("Primera lista: " + firstClose.message, firstClose.ok);
-
-      // Segunda lista: se procesa únicamente después de cerrar la primera.
-      status.textContent = "Procesando segunda lista…";
+      // Pausa entre aperturas: MercadoLibre no permite desplegarlas en el mismo instante.
+      status.textContent = "Esperando para abrir la segunda lista…";
+      await sleep(650);
       const secondOpen = await setAccordion([
         "publicaciones que quieres incluir en la planilla",
         "publicaciones que quieres incluir",
@@ -183,6 +191,15 @@
         for (const result of applyCategoryAndActive()) add(result.message, result.ok);
       } else add("Se omitieron «Todas» y «Activas» porque no se pudo abrir la segunda lista.", false);
 
+      // Comprobar que ambas listas continúen desplegadas.
+      const firstStillOpen = accordionInfo(firstPhrases)?.isOpen === true;
+      const secondStillOpen = accordionInfo([
+        "publicaciones que quieres incluir en la planilla",
+        "publicaciones que quieres incluir",
+        "categorías y publicaciones", "categorias y publicaciones"
+      ])?.isOpen === true;
+      add("Primera lista permanece abierta.", firstStillOpen);
+      add("Segunda lista permanece abierta.", secondStillOpen);
       add("No se descargó ningún archivo ni se modificaron precios o cantidades.", true);
       status.textContent = "Proceso terminado. Revisa los avisos.";
     } catch (error) {
