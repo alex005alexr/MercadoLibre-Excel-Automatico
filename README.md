@@ -18,7 +18,7 @@ La extensión también puede programar descargas aunque Chrome esté cerrado:
 - Una ejecución al iniciar sesión en Windows (independiente de los horarios diarios).
 - Uno o varios horarios diarios. Por defecto se propone 12:00.
 - Los horarios se agregan, modifican o eliminan desde el botón de la extensión.
-- Windows abre Chrome usando el perfil habitual, sin guardar ni solicitar credenciales.
+- Windows abre Chrome usando el perfil habitual, sin guardar ni solicitar credenciales. Si ya hay otras pestañas abiertas, la pestaña automática intenta quedar en segundo plano.
 - La extensión espera la descarga real del archivo. Si Chrome confirma que terminó, cierra solo la pestaña automática y muestra una notificación.
 - Si la sesión expiró, aparece un CAPTCHA, falla la selección o no se confirma la descarga, deja la pestaña abierta y muestra un aviso.
 
