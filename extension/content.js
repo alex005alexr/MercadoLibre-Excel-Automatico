@@ -3,6 +3,11 @@
   if (window.__mlExcelHelperLoaded) return;
   window.__mlExcelHelperLoaded = true;
 
+  const automatedRun = new URL(location.href).searchParams.get("mlh_auto") === "1";
+  const reportAuto = (type, message = "") => {
+    if (!automatedRun) return;
+    try { chrome.runtime.sendMessage({ type, message }); } catch (_) {}
+  };
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const norm = value => (value || "").normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -317,6 +322,7 @@
     const status = panel.querySelector(".mlh-status");
     const report = panel.querySelector(".mlh-report");
     button.disabled = true;
+    reportAuto("mlh-auto-started");
     status.textContent = "Procesando primera lista…";
     report.replaceChildren();
     const add = (message, ok) => {
@@ -371,14 +377,18 @@
         status.textContent = "Selecciones verificadas. Buscando el botón de descarga…";
         const download = await clickDownloadButton();
         add(download.message, download.ok);
+        if (download.ok) reportAuto("mlh-auto-download-clicked");
+        else reportAuto("mlh-auto-failed", download.message);
       } else {
         add("No se descargó el Excel porque alguna selección no pudo verificarse.", false);
+        reportAuto("mlh-auto-failed", "Una o más selecciones no pudieron verificarse.");
       }
       add("La extensión no modifica precios ni cantidades; solo prepara y descarga la planilla.", true);
       status.textContent = "Proceso terminado. Revisa los avisos.";
     } catch (error) {
       status.textContent = "No se pudo completar la selección.";
       add("Error: " + (error?.message || String(error)), false);
+      reportAuto("mlh-auto-failed", "Error durante la preparación: " + (error?.message || String(error)));
     } finally {
       button.disabled = false;
     }
