@@ -15,7 +15,7 @@ async function notify(title, message, success) {
   try {
     await chrome.notifications.create("mlh-" + Date.now(), {
       type: "basic",
-      iconUrl: chrome.runtime.getURL("icon.svg"),
+      iconUrl: chrome.runtime.getURL("icon.png"),
       title,
       message,
       priority: 2
