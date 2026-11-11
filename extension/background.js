@@ -65,9 +65,10 @@ async function registerAutoTab(tabId, url) {
   } catch (_) {}
 }
 
+let registrationQueue = Promise.resolve();
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url;
-  if (url) registerAutoTab(tabId, url);
+  if (url) registrationQueue = registrationQueue.then(() => registerAutoTab(tabId, url)).catch(() => {});
 });
 
 chrome.runtime.onMessage.addListener((message, sender) => {
