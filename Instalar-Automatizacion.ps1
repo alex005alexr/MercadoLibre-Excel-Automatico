@@ -24,7 +24,7 @@ public class MLExcelNativeHost {
       byte[] payload=new byte[size]; ReadAll(input,payload);
       ProcessStartInfo psi=new ProcessStartInfo();
       psi.FileName=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),@"System32\WindowsPowerShell\v1.0\powershell.exe");
-      psi.Arguments="-NoProfile -ExecutionPolicy Bypass -File ""$scriptPath""";
+      psi.Arguments="-NoProfile -ExecutionPolicy Bypass -File \\"$scriptPath\\"";
       psi.UseShellExecute=false; psi.RedirectStandardInput=true; psi.RedirectStandardOutput=true; psi.CreateNoWindow=true;
       using(Process p=Process.Start(psi)) {
         Stream childIn=p.StandardInput.BaseStream; childIn.Write(len,0,4); childIn.Write(payload,0,payload.Length); childIn.Flush(); p.StandardInput.Close();
