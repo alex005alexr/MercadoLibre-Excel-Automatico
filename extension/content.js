@@ -208,23 +208,25 @@
     return entries.length ? entries.slice(0, 24).join(" | ") : "No se detectaron casillas ni etiquetas visibles dentro del panel.";
   }
 
-  function applyCategoryAndActive(root = document) {
+  async function applyCategoryAndActive(root = document) {
     const results = [];
-    const allOption = findCheckboxOption("Todas", root);
-    if (!allOption) {
-      results.push({ ok: false, message: "No se encontró «Todas» dentro de la segunda lista. Controles detectados: " + diagnoseCategoryControls(root) });
+
+    // La inspección del usuario confirmó que «Todas» es un checkbox Andes
+    // cuyo value estable es ALL. No usar el id generado (_r_4_), porque cambia.
+    const allInput = root.querySelector('input.andes-checkbox__input[data-andes-checkbox-input="true"][type="checkbox"][value="ALL"]')
+      || document.querySelector('input.andes-checkbox__input[data-andes-checkbox-input="true"][type="checkbox"][value="ALL"]');
+
+    if (!allInput) {
+      results.push({ ok: false, message: "No se encontró el checkbox Andes con value=ALL para «Todas»." });
     } else {
-      const input = allOption.input;
-      if (input) {
-        if (!input.checked) allOption.target.click();
-        results.push({ ok: input.checked, message: input.checked
-          ? "Categorías: opción «Todas» seleccionada."
-          : "No se pudo confirmar la selección de «Todas»." });
-      } else {
-        const alreadyChecked = allOption.target.getAttribute("aria-checked") === "true";
-        if (!alreadyChecked) allOption.target.click();
-        results.push({ ok: true, message: "Se pulsó la opción «Todas»." });
-      }
+      if (!allInput.checked) allInput.click();
+      await sleep(250);
+      results.push({
+        ok: allInput.checked,
+        message: allInput.checked
+          ? "Categorías: «Todas» seleccionada y verificada."
+          : "Se pulsó «Todas», pero MercadoLibre no confirmó que quedara seleccionada."
+      });
     }
 
     const activeLabel = labels().find(label => ["activas", "publicaciones activas", "solo activas"].includes(txt(label)));
@@ -314,18 +316,11 @@
           "publicaciones que quieres incluir",
           "categorías y publicaciones", "categorias y publicaciones"
         ]);
-        for (const result of applyCategoryAndActive(secondInfo?.wrapper || document)) add(result.message, result.ok);
+        for (const result of await applyCategoryAndActive(secondInfo?.wrapper || document)) add(result.message, result.ok);
       } else add("Se omitieron «Todas» y «Activas» porque no se pudo abrir la segunda lista.", false);
 
-      // Comprobar que ambas listas continúen desplegadas.
-      const firstStillOpen = accordionInfo(firstPhrases)?.isOpen === true;
-      const secondStillOpen = accordionInfo([
-        "publicaciones que quieres incluir en la planilla",
-        "publicaciones que quieres incluir",
-        "categorías y publicaciones", "categorias y publicaciones"
-      ])?.isOpen === true;
-      add("Primera lista permanece abierta.", firstStillOpen);
-      add("Segunda lista permanece abierta.", secondStillOpen);
+      // No se informa el estado final de los acordeones: el DOM de MercadoLibre
+      // no expone un indicador fiable y esa comprobación generaba falsos avisos.
       add("No se descargó ningún archivo ni se modificaron precios o cantidades.", true);
       status.textContent = "Proceso terminado. Revisa los avisos.";
     } catch (error) {
