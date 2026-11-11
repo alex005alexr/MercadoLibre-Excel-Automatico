@@ -396,17 +396,48 @@
 
   function init() {
     if (!document.getElementById("ml-excel-helper-panel")) createPanel();
-    let tries = 0;
+    if (window.__mlhInitStarted) return;
+    window.__mlhInitStarted = true;
+
+    const selectionPhrases = ["datos que vas a modificar", "datos a modificar"];
+    const findLandingHeading = () => [...document.querySelectorAll("h2")]
+      .find(el => visible(el) && norm(el.textContent) === "descarga la planilla excel");
+
     const attempt = async () => {
-      if (tries++ >= 12) {
-        reportAuto("mlh-auto-failed", "No apareció la pantalla de edición en Excel. Revisa si MercadoLibre cerró la sesión o mostró un CAPTCHA.");
-        return;
+      const deadline = Date.now() + 45000;
+      let landingClicked = false;
+
+      while (Date.now() < deadline) {
+        // Si ya estamos en la pantalla de configuración, continuar con las
+        // selecciones sin volver a pulsar el acceso inicial.
+        if (findHeading(selectionPhrases)) {
+          await runSelection();
+          return;
+        }
+
+        // Primera pantalla de MercadoLibre: entrar a la configuración pulsando
+        // exactamente el encabezado «Descarga la planilla excel».
+        const landingHeading = findLandingHeading();
+        if (landingHeading && !landingClicked) {
+          landingClicked = true;
+          landingHeading.click();
+          const panel = document.getElementById("ml-excel-helper-panel");
+          const status = panel?.querySelector(".mlh-status");
+          if (status) status.textContent = "Abriendo la configuración de la planilla…";
+        }
+
+        await sleep(500);
       }
-      await sleep(700);
-      if (!findHeading(["datos que vas a modificar", "datos a modificar"])) return attempt();
-      await runSelection();
+
+      reportAuto("mlh-auto-failed",
+        "No apareció la pantalla para seleccionar los artículos. Se buscó el acceso «Descarga la planilla excel» y se esperó la configuración.");
+      const panel = document.getElementById("ml-excel-helper-panel");
+      const status = panel?.querySelector(".mlh-status");
+      if (status) status.textContent = "No se pudo abrir la pantalla de selección. Revisa MercadoLibre.";
     };
-    attempt();
+    attempt().catch(error => {
+      reportAuto("mlh-auto-failed", "Error al abrir la configuración: " + (error?.message || String(error)));
+    });
   }
   init();
   const observer = new MutationObserver(() => {
