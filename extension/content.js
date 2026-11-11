@@ -63,13 +63,11 @@
     }
 
     const semanticControl = heading.closest("button,[role=button],summary,[aria-expanded]");
-    let clickable = semanticControl;
-    if (!clickable && card) {
-      // En esta pantalla el encabezado se presenta como una tarjeta con una
-      // flecha azul; si no hay botón semántico, pulsar esa tarjeta/encabezado.
-      clickable = card;
-    }
-    if (!clickable) clickable = heading;
+    // En la segunda tarjeta se comprobó que el propio texto del encabezado
+    // despliega el acordeón. Hacer clic directamente sobre ese texto evita
+    // pulsar un contenedor exterior que no activa el control.
+    const isPublicationsList = phrases.some(p => norm(p).includes("publicaciones que quieres incluir"));
+    let clickable = isPublicationsList ? heading : (semanticControl || card || heading);
 
     const scope = card || clickable.parentElement || heading.parentElement;
     const expandedAttr = clickable.getAttribute?.("aria-expanded");
