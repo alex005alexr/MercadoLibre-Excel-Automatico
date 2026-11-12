@@ -126,7 +126,7 @@
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const found = fieldOptions.filter(([name]) => !!findLabel(name)).length;
-      if (found > 0) return found;
+      if (found === fieldOptions.length) return found;
       await sleep(250);
     }
     return fieldOptions.filter(([name]) => !!findLabel(name)).length;
