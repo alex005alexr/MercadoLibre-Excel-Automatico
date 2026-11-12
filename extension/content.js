@@ -116,13 +116,24 @@
     return { ok: true, message: "Se pulsó el encabezado y se esperó a que apareciera su contenido." };
   }
 
+  const fieldOptions = [
+    ["Precio", true], ["Estado", true], ["SKU", true], ["Categoría", true],
+    ["En tu depósito", true], ["Forma de entrega y costo de envío", false],
+    ["Tipo de publicación", false], ["Condición", false]
+  ];
+
+  async function waitForFirstListOptions(timeout = 8000) {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const found = fieldOptions.filter(([name]) => !!findLabel(name)).length;
+      if (found > 0) return found;
+      await sleep(250);
+    }
+    return fieldOptions.filter(([name]) => !!findLabel(name)).length;
+  }
+
   function applyFieldOptions() {
-    const options = [
-      ["Precio", true], ["Estado", true], ["SKU", true], ["Categoría", true],
-      ["En tu depósito", true], ["Forma de entrega y costo de envío", false],
-      ["Tipo de publicación", false], ["Condición", false]
-    ];
-    return options.map(([name, wanted]) => {
+    return fieldOptions.map(([name, wanted]) => {
       const label = findLabel(name);
       if (!label) return { name, wanted, ok: false, reason: "No se encontró en la primera lista" };
       return { name, wanted, ...setCheck(label, wanted) };
@@ -339,6 +350,14 @@
       const firstOpen = await setAccordion(firstPhrases, true);
       add("Primera lista: " + firstOpen.message, firstOpen.ok);
       if (firstOpen.ok) {
+        // La primera lista carga sus opciones de forma asíncrona. No asumir
+        // que el acordeón está listo solo porque el encabezado recibió el clic.
+        status.textContent = "Esperando a que carguen los campos de la primera lista…";
+        const availableFields = await waitForFirstListOptions(8000);
+        if (availableFields === 0) {
+          add("La primera lista se abrió, pero sus campos no aparecieron tras esperar 8 segundos.", false);
+          allSelectionsOk = false;
+        }
         for (const result of applyFieldOptions()) {
           add(result.name + (result.ok ? (result.wanted ? " marcado" : " desmarcado") : ": " + result.reason), result.ok);
           if (!result.ok) allSelectionsOk = false;
