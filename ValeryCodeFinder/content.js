@@ -98,32 +98,26 @@ function createButton(id, large = false) {
 function renderListingId(node) {
  if (!(node instanceof HTMLElement) || !node.isConnected) return;
  const id = normalizeId(node.textContent);
- if (!/^\\d{5,}$/.test(id)) return;
+ if (!/^\d{5,}$/.test(id)) return;
 
- const copyControl = node.closest(".sc-copyable-element") || node.parentElement;
- if (!copyControl) return;
+ // Cada publicación del listado está agrupada en este contenedor.
+ const row = node.closest(".sll-list-grid-row__stacked");
+ if (!row) return;
 
- // Busca el contenedor más cercano que incluya tanto el ID como el precio.
- let scope = copyControl;
- let price = null;
- for (let depth = 0; depth < 8 && scope; depth++, scope = scope.parentElement) {
-  price = scope.querySelector(".sll-list-text-line__text--primary");
-  if (price && scope.contains(copyControl)) break;
-  price = null;
- }
+ const price = row.querySelector(".sll-list-text-line__text--primary");
  if (!price) return;
 
- const existing = price.querySelector(':scope > [data-vcf-widget][data-vcf-placement="listing"]');
- if (existing?.getAttribute("data-vcf-widget-for") === id) return;
+ const existing = row.querySelector('[data-vcf-widget][data-vcf-placement="listing"]');
+ if (existing?.getAttribute("data-vcf-widget-for") === id &&
+     existing.previousElementSibling === price) return;
  existing?.remove();
 
  const host = createButton(id, false);
  if (!host) return;
  host.dataset.vcfPlacement = "listing";
- // Se coloca dentro del bloque del precio para aprovechar el espacio inferior
- // sin añadir una columna ni ensanchar la fila de publicaciones.
- host.style.cssText = "display:flex;width:max-content;margin:4px 0 27px 0;vertical-align:top";
- price.append(host);
+ // Como hermano del precio, queda debajo sin ensanchar la columna del ID.
+ host.style.cssText = "display:flex;width:max-content;margin:4px 0 0 0;vertical-align:top";
+ price.after(host);
 }
 
 function getProductIdFromUrl() {
