@@ -1,14 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Valery Code Finder",
-  "version": "1.0.0",
-  "description": "Muestra el código de Valery junto al ID de cada publicación de MercadoLibre.",
+  "version": "1.0.1",
+  "description": "Añade un botón para copiar el código de Valery junto al ID de publicaciones de MercadoLibre.",
   "permissions": [
     "storage",
     "clipboardWrite"
   ],
   "host_permissions": [
     "https://vendedores.mercadolibre.com.ve/publicaciones*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["valery-logo.svg"],
+      "matches": ["https://vendedores.mercadolibre.com.ve/*"]
+    }
   ],
   "action": {
     "default_title": "Valery Code Finder",
