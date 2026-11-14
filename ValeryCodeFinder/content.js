@@ -13,6 +13,31 @@ function getCode(id) {
  return entries && entries.length === 1 ? entries[0] : null;
 }
 
+function showCopyToast(code) {
+ let host = document.querySelector("[data-vcf-toast]");
+ if (!host) {
+  host = document.createElement("div");
+  host.dataset.vcfToast = "";
+  const shadow = host.attachShadow({ mode: "open" });
+  const style = document.createElement("style");
+  style.textContent = ":host{all:initial;position:fixed;z-index:2147483647;right:22px;bottom:22px;pointer-events:none}" +
+   ".toast{font:500 14px/1.4 Arial,sans-serif;color:#fff;background:#242a30;padding:12px 16px;border-radius:8px;" +
+   "box-shadow:0 4px 18px #0004;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s}" +
+   ".toast.show{opacity:1;transform:translateY(0)}";
+  const box = document.createElement("div");
+  box.className = "toast";
+  shadow.append(style, box);
+  document.documentElement.append(host);
+ }
+ const box = host.shadowRoot.querySelector(".toast");
+ box.textContent = "Código de Valery copiado: " + code;
+ box.classList.remove("show");
+ void box.offsetWidth;
+ box.classList.add("show");
+ clearTimeout(host.__vcfToastTimer);
+ host.__vcfToastTimer = window.setTimeout(() => box.classList.remove("show"), 2200);
+}
+
 function createButton(id, large = false) {
  const code = getCode(id);
  if (!code) return null;
@@ -51,6 +76,7 @@ function createButton(id, large = false) {
   try {
    await navigator.clipboard.writeText(code);
    button.dataset.copied = "true";
+   showCopyToast(code);
    button.title = "Código de Valery copiado";
    button.setAttribute("aria-label", "Código de Valery copiado");
    window.setTimeout(() => {
@@ -72,21 +98,32 @@ function createButton(id, large = false) {
 function renderListingId(node) {
  if (!(node instanceof HTMLElement) || !node.isConnected) return;
  const id = normalizeId(node.textContent);
- if (!/^\d{5,}$/.test(id)) return;
+ if (!/^\\d{5,}$/.test(id)) return;
 
- // El ID y el icono nativo están dentro de este span. El botón Valery
- // se inserta después del span completo, nunca dentro del control de ML.
  const copyControl = node.closest(".sc-copyable-element") || node.parentElement;
- if (!copyControl || !copyControl.parentElement) return;
- const existing = copyControl.nextElementSibling;
- if (existing?.matches('[data-vcf-widget][data-vcf-placement="listing"]') &&
-     existing.getAttribute("data-vcf-widget-for") === id) return;
- if (existing?.matches('[data-vcf-widget][data-vcf-placement="listing"]')) existing.remove();
+ if (!copyControl) return;
+
+ // Busca el contenedor más cercano que incluya tanto el ID como el precio.
+ let scope = copyControl;
+ let price = null;
+ for (let depth = 0; depth < 8 && scope; depth++, scope = scope.parentElement) {
+  price = scope.querySelector(".sll-list-text-line__text--primary");
+  if (price && scope.contains(copyControl)) break;
+  price = null;
+ }
+ if (!price) return;
+
+ const existing = price.querySelector(':scope > [data-vcf-widget][data-vcf-placement="listing"]');
+ if (existing?.getAttribute("data-vcf-widget-for") === id) return;
+ existing?.remove();
 
  const host = createButton(id, false);
  if (!host) return;
  host.dataset.vcfPlacement = "listing";
- copyControl.after(host);
+ // Se coloca dentro del bloque del precio para aprovechar el espacio inferior
+ // sin añadir una columna ni ensanchar la fila de publicaciones.
+ host.style.cssText = "display:flex;width:max-content;margin:4px 0 27px 0;vertical-align:top";
+ price.append(host);
 }
 
 function getProductIdFromUrl() {
