@@ -1,19 +1,23 @@
 {
   "manifest_version": 3,
   "name": "Valery Code Finder",
-  "version": "1.0.1",
-  "description": "Añade un botón para copiar el código de Valery junto al ID de publicaciones de MercadoLibre.",
+  "version": "1.0.2",
+  "description": "Copia el código de Valery asociado a publicaciones de MercadoLibre.",
   "permissions": [
     "storage",
     "clipboardWrite"
   ],
   "host_permissions": [
-    "https://vendedores.mercadolibre.com.ve/publicaciones*"
+    "https://vendedores.mercadolibre.com.ve/publicaciones*",
+    "https://articulo.mercadolibre.com.ve/*"
   ],
   "web_accessible_resources": [
     {
       "resources": ["valery-logo.svg"],
-      "matches": ["https://vendedores.mercadolibre.com.ve/*"]
+      "matches": [
+        "https://vendedores.mercadolibre.com.ve/*",
+        "https://articulo.mercadolibre.com.ve/*"
+      ]
     }
   ],
   "action": {
@@ -23,11 +27,10 @@
   "content_scripts": [
     {
       "matches": [
-        "https://vendedores.mercadolibre.com.ve/publicaciones*"
+        "https://vendedores.mercadolibre.com.ve/publicaciones*",
+        "https://articulo.mercadolibre.com.ve/*"
       ],
-      "js": [
-        "content.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ]
