@@ -53,7 +53,17 @@ function renderId(node) {
  logo.draggable = false;
 
  button.append(logo);
- button.addEventListener("click", async () => {
+ // Evita que los eventos lleguen al control original de copia de MercadoLibre.
+ for (const eventName of ["pointerdown", "mousedown", "click"]) {
+  button.addEventListener(eventName, event => {
+   event.preventDefault();
+   event.stopPropagation();
+   event.stopImmediatePropagation();
+  });
+ }
+ button.addEventListener("click", async (event) => {
+  event.preventDefault();
+  event.stopPropagation();
   try {
    await navigator.clipboard.writeText(code);
    button.dataset.copied = "true";
