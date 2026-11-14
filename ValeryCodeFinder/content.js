@@ -22,7 +22,7 @@ function getCode(id) {
 function renderId(node) {
  if (!(node instanceof HTMLElement) || !node.isConnected) return;
  const id = normalizeId(node.textContent);
- if (!/^\\d{5,}$/.test(id)) return;
+ if (!/^\d{5,}$/.test(id)) return;
 
  const next = node.nextElementSibling;
  if (node.dataset.vcfProcessed === id && next?.hasAttribute("data-vcf-widget")) return;
