@@ -3,42 +3,35 @@
 if (window.__valeryCodeFinderLoaded) return;
 window.__valeryCodeFinderLoaded = true;
 
-const SELECTOR = "span.sc-copyable-element__text";
-const normalizeId = value => String(value ?? "").replace(/^\s*#/, "").replace(/\D/g, "");
+const LIST_ID_SELECTOR = "span.sc-copyable-element__text";
+const PRODUCT_SUBTITLE_SELECTOR = "span.ui-pdp-subtitle";
+const normalizeId = value => String(value ?? "").replace(/^\\s*#/, "").replace(/\\D/g, "");
 let catalog = new Map();
-
-const css = ":host{all:initial;display:inline-flex;vertical-align:middle;margin-left:7px}" +
-".vcf button{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;padding:3px;border:1px solid #d7dce0;border-radius:6px;background:#fff;cursor:pointer}" +
-".vcf button:hover{background:#f5f7f8;border-color:#9aa4ad}" +
-".vcf button:focus-visible{outline:2px solid #3483fa;outline-offset:2px}" +
-".vcf img{display:block;width:19px;height:19px;object-fit:contain}" +
-".vcf button[data-copied='true']{border-color:#16834a;background:#eefaf2}";
 
 function getCode(id) {
  const entries = catalog.get(id);
  return entries && entries.length === 1 ? entries[0] : null;
 }
 
-function renderId(node) {
- if (!(node instanceof HTMLElement) || !node.isConnected) return;
- const id = normalizeId(node.textContent);
- if (!/^\d{5,}$/.test(id)) return;
-
- const next = node.nextElementSibling;
- if (node.dataset.vcfProcessed === id && next?.hasAttribute("data-vcf-widget")) return;
- if (next?.hasAttribute("data-vcf-widget")) next.remove();
- node.dataset.vcfProcessed = id;
-
+function createButton(id, large = false) {
  const code = getCode(id);
- // No se muestra nada cuando no hay coincidencia única.
- if (!code) return;
+ if (!code) return null;
 
  const host = document.createElement("span");
  host.setAttribute("data-vcf-widget", "");
  host.setAttribute("data-vcf-widget-for", id);
  const shadow = host.attachShadow({ mode: "open" });
  const style = document.createElement("style");
- style.textContent = css;
+ style.textContent =
+  ":host{all:initial;display:inline-flex;vertical-align:middle;margin-left:8px}" +
+  ".vcf button{display:inline-flex;align-items:center;justify-content:center;" +
+  "width:" + (large ? "34px" : "27px") + ";height:" + (large ? "34px" : "27px") +
+  ";padding:3px;border:1px solid #d7dce0;border-radius:6px;background:#fff;cursor:pointer}" +
+  ".vcf button:hover{background:#f5f7f8;border-color:#9aa4ad}" +
+  ".vcf button:focus-visible{outline:2px solid #3483fa;outline-offset:2px}" +
+  ".vcf img{display:block;width:" + (large ? "24px" : "19px") +
+  ";height:" + (large ? "24px" : "19px") + ";object-fit:contain}" +
+  ".vcf button[data-copied='true']{border-color:#16834a;background:#eefaf2}";
 
  const wrap = document.createElement("span");
  wrap.className = "vcf";
@@ -46,22 +39,13 @@ function renderId(node) {
  button.type = "button";
  button.title = "Copiar código de Valery";
  button.setAttribute("aria-label", "Copiar código de Valery");
-
  const logo = document.createElement("img");
  logo.src = chrome.runtime.getURL("valery-logo.svg");
  logo.alt = "Valery";
  logo.draggable = false;
-
  button.append(logo);
- // Evita que los eventos lleguen al control original de copia de MercadoLibre.
- for (const eventName of ["pointerdown", "mousedown", "click"]) {
-  button.addEventListener(eventName, event => {
-   event.preventDefault();
-   event.stopPropagation();
-   event.stopImmediatePropagation();
-  });
- }
- button.addEventListener("click", async (event) => {
+
+ button.addEventListener("click", async event => {
   event.preventDefault();
   event.stopPropagation();
   try {
@@ -82,7 +66,57 @@ function renderId(node) {
 
  wrap.append(button);
  shadow.append(style, wrap);
- node.after(host);
+ return host;
+}
+
+function renderListingId(node) {
+ if (!(node instanceof HTMLElement) || !node.isConnected) return;
+ const id = normalizeId(node.textContent);
+ if (!/^\\d{5,}$/.test(id)) return;
+
+ // El ID y el icono nativo están dentro de este span. El botón Valery
+ // se inserta después del span completo, nunca dentro del control de ML.
+ const copyControl = node.closest(".sc-copyable-element") || node.parentElement;
+ if (!copyControl || !copyControl.parentElement) return;
+ const existing = copyControl.nextElementSibling;
+ if (existing?.matches('[data-vcf-widget][data-vcf-placement="listing"]') &&
+     existing.getAttribute("data-vcf-widget-for") === id) return;
+ if (existing?.matches('[data-vcf-widget][data-vcf-placement="listing"]')) existing.remove();
+
+ const host = createButton(id, false);
+ if (!host) return;
+ host.dataset.vcfPlacement = "listing";
+ copyControl.after(host);
+}
+
+function getProductIdFromUrl() {
+ const match = location.pathname.match(/MLV-?(\\d+)/i);
+ return match ? normalizeId(match[1]) : null;
+}
+
+function renderProductPage() {
+ if (!/\\barticulo\\.mercadolibre\\.com\\.ve$/i.test(location.hostname)) return;
+ const subtitle = document.querySelector(PRODUCT_SUBTITLE_SELECTOR);
+ if (!subtitle || !subtitle.parentElement) return;
+ const id = getProductIdFromUrl();
+ if (!id || !/^\\d{5,}$/.test(id)) return;
+
+ const existing = subtitle.nextElementSibling;
+ if (existing?.matches('[data-vcf-widget][data-vcf-placement="product"]') &&
+     existing.getAttribute("data-vcf-widget-for") === id) return;
+ if (existing?.matches('[data-vcf-widget][data-vcf-placement="product"]')) existing.remove();
+
+ const host = createButton(id, true);
+ if (!host) return;
+ host.dataset.vcfPlacement = "product";
+ subtitle.after(host);
+}
+
+function scan(root = document) {
+ if (root.matches?.(LIST_ID_SELECTOR)) renderListingId(root);
+ root.querySelectorAll?.(LIST_ID_SELECTOR).forEach(renderListingId);
+ if (root.matches?.(PRODUCT_SUBTITLE_SELECTOR)) renderProductPage();
+ if (root.querySelector?.(PRODUCT_SUBTITLE_SELECTOR)) renderProductPage();
 }
 
 async function loadCatalog() {
@@ -92,15 +126,10 @@ async function loadCatalog() {
  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
   for (const [key, value] of Object.entries(raw)) {
    const id = normalizeId(key);
-   const codes = Array.isArray(value) ? value.map(x => String(x).trim()).filter(Boolean) : [];
-   if (id && codes.length) catalog.set(id, [...new Set(codes)]);
+   const codes = Array.isArray(value) ? [...new Set(value.map(x => String(x).trim()).filter(Boolean))] : [];
+   if (id && codes.length) catalog.set(id, codes);
   }
  }
-}
-
-function scan(root = document) {
- if (root.matches?.(SELECTOR)) renderId(root);
- root.querySelectorAll?.(SELECTOR).forEach(renderId);
 }
 
 loadCatalog().then(() => {
@@ -110,29 +139,30 @@ loadCatalog().then(() => {
    for (const added of record.addedNodes) {
     if (added.nodeType === Node.ELEMENT_NODE) scan(added);
     else if (added.nodeType === Node.TEXT_NODE) {
-     const target = added.parentElement?.closest(SELECTOR);
-     if (target) renderId(target);
+     const target = added.parentElement?.closest(LIST_ID_SELECTOR);
+     if (target) renderListingId(target);
     }
    }
    if (record.type === "characterData") {
-    const target = record.target.parentElement?.closest(SELECTOR);
-    if (target) renderId(target);
+    const target = record.target.parentElement?.closest(LIST_ID_SELECTOR);
+    if (target) renderListingId(target);
    }
   }
+  renderProductPage();
  });
  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
  chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.valeryCodeCatalog) {
    loadCatalog().then(() => {
-    document.querySelectorAll(SELECTOR).forEach(node => {
-     node.dataset.vcfProcessed = "";
-     const widget = node.nextElementSibling;
-     if (widget?.hasAttribute("data-vcf-widget")) widget.remove();
-     renderId(node);
-    });
+    document.querySelectorAll("[data-vcf-widget]").forEach(widget => widget.remove());
+    document.querySelectorAll(LIST_ID_SELECTOR).forEach(node => renderListingId(node));
+    renderProductPage();
    });
   }
  });
+
+ // MercadoLibre puede navegar entre publicaciones sin recargar el documento.
+ window.addEventListener("popstate", renderProductPage);
 }).catch(() => scan());
 })();
