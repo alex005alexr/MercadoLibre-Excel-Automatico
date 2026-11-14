@@ -24,7 +24,7 @@ function renderId(node, force = false) {
  const id=normalizeId(node.textContent);
  if(!/^\d{5,}$/.test(id))return;
  const next=node.nextElementSibling;
- if(node.dataset.vcfProcessed===id&&next?.hasAttribute("data-vcf-widget"))return;
+ if(node.dataset.vcfProcessed===id&&next?.hasAttribute("data-vcf-widget")){if(!force)return;next.remove();}
  node.dataset.vcfProcessed=id;
  const host=document.createElement("span");
  host.setAttribute("data-vcf-widget","");
@@ -64,15 +64,18 @@ async function loadCatalog(){
   }
  }
 }
-function scan(root=document){
- if(root.matches?.(SELECTOR))renderId(root);
- root.querySelectorAll?.(SELECTOR).forEach(renderId);
+function scan(root=document, force=false){
+ if(root.matches?.(SELECTOR))renderId(root,force);
+ root.querySelectorAll?.(SELECTOR).forEach(node=>renderId(node,force));
 }
 loadCatalog().then(()=>{
  scan();
  const observer=new MutationObserver(records=>{
   for(const record of records){
-   for(const added of record.addedNodes){\n    if(added.nodeType===Node.ELEMENT_NODE)scan(added);\n    else if(added.nodeType===Node.TEXT_NODE){const target=added.parentElement?.closest(SELECTOR);if(target)renderId(target);}\n   }
+   for(const added of record.addedNodes){
+    if(added.nodeType===Node.ELEMENT_NODE)scan(added);
+    else if(added.nodeType===Node.TEXT_NODE){const target=added.parentElement?.closest(SELECTOR);if(target)renderId(target);}
+   }
    if(record.type==="characterData"){
     const target=record.target.parentElement?.closest(SELECTOR);if(target)renderId(target);
    }
