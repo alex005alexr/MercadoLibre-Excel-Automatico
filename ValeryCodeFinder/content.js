@@ -5,7 +5,7 @@ window.__valeryCodeFinderLoaded = true;
 
 const LIST_ID_SELECTOR = "span.sc-copyable-element__text";
 const PRODUCT_SUBTITLE_SELECTOR = "span.ui-pdp-subtitle";
-const normalizeId = value => String(value ?? "").replace(/^\\s*#/, "").replace(/\\D/g, "");
+const normalizeId = value => String(value ?? "").replace(/^\s*#/, "").replace(/\D/g, "");
 let catalog = new Map();
 
 function getCode(id) {
@@ -72,7 +72,7 @@ function createButton(id, large = false) {
 function renderListingId(node) {
  if (!(node instanceof HTMLElement) || !node.isConnected) return;
  const id = normalizeId(node.textContent);
- if (!/^\\d{5,}$/.test(id)) return;
+ if (!/^\d{5,}$/.test(id)) return;
 
  // El ID y el icono nativo están dentro de este span. El botón Valery
  // se inserta después del span completo, nunca dentro del control de ML.
@@ -90,16 +90,16 @@ function renderListingId(node) {
 }
 
 function getProductIdFromUrl() {
- const match = location.pathname.match(/MLV-?(\\d+)/i);
+ const match = location.pathname.match(/MLV-?(\d+)/i);
  return match ? normalizeId(match[1]) : null;
 }
 
 function renderProductPage() {
- if (!/\\barticulo\\.mercadolibre\\.com\\.ve$/i.test(location.hostname)) return;
+ if (!/\barticulo\.mercadolibre\.com\.ve$/i.test(location.hostname)) return;
  const subtitle = document.querySelector(PRODUCT_SUBTITLE_SELECTOR);
  if (!subtitle || !subtitle.parentElement) return;
  const id = getProductIdFromUrl();
- if (!id || !/^\\d{5,}$/.test(id)) return;
+ if (!id || !/^\d{5,}$/.test(id)) return;
 
  const existing = subtitle.nextElementSibling;
  if (existing?.matches('[data-vcf-widget][data-vcf-placement="product"]') &&
