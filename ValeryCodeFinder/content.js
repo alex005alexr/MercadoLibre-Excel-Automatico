@@ -19,7 +19,7 @@ function lookup(id) {
  if(entries.length>1)return {kind:"conflict",codes:entries};
  return {kind:"match",code:entries[0]};
 }
-function renderId(node) {
+function renderId(node, force = false) {
  if(!(node instanceof HTMLElement)||!node.isConnected)return;
  const id=normalizeId(node.textContent);
  if(!/^\d{5,}$/.test(id))return;
@@ -72,7 +72,7 @@ loadCatalog().then(()=>{
  scan();
  const observer=new MutationObserver(records=>{
   for(const record of records){
-   for(const added of record.addedNodes)if(added.nodeType===Node.ELEMENT_NODE)scan(added);
+   for(const added of record.addedNodes){\n    if(added.nodeType===Node.ELEMENT_NODE)scan(added);\n    else if(added.nodeType===Node.TEXT_NODE){const target=added.parentElement?.closest(SELECTOR);if(target)renderId(target);}\n   }
    if(record.type==="characterData"){
     const target=record.target.parentElement?.closest(SELECTOR);if(target)renderId(target);
    }
@@ -80,7 +80,7 @@ loadCatalog().then(()=>{
  });
  observer.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
  chrome.storage.onChanged.addListener((changes,area)=>{
-  if(area==="local"&&changes.valeryCodeCatalog)loadCatalog().then(()=>scan());
+  if(area==="local"&&changes.valeryCodeCatalog)loadCatalog().then(()=>scan(document,true));
  });
 }).catch(()=>scan());
 })();
