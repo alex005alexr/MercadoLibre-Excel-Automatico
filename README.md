@@ -55,3 +55,8 @@ El instalador registra un pequeño host local de Chrome y crea las tareas progra
 - Solo cierra la pestaña automática cuando Chrome informa que el archivo Excel terminó de descargarse.
 - Si no puede identificar con seguridad la descarga, no cierra la pestaña.
 - La página y sus controles pueden cambiar; revisa el panel si MercadoLibre modifica su interfaz.
+
+
+## Segunda extensión: Valery Code Finder
+
+En la carpeta `ValeryCodeFinder` se encuentra una extensión Chrome independiente que relaciona el ID de cada publicación con el Código de Valery. Se instala seleccionando esa carpeta por separado en `chrome://extensions`; no sustituye ni modifica la extensión `extension` de Excel Automático. Su guía de instalación e importación está en `ValeryCodeFinder/README.md`.
